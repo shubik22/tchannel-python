@@ -22,8 +22,10 @@ import json
 
 from tornado import gen
 from tornado import ioloop
+from threading import Thread
 
-from tchannel import TChannel, thrift
+from tchannel import thrift
+from tchannel.sync import TChannel
 
 tchannel = TChannel('thrift-client')
 service = thrift.load(
@@ -33,25 +35,29 @@ service = thrift.load(
 )
 
 
-@gen.coroutine
 def make_request():
-
-    resp = yield tchannel.thrift(
+    
+    resp = tchannel.thrift(
         request=service.ThriftTest.testString(thing="req"),
         headers={
             'req': 'header',
         },
-    )
+    ).result()
 
-    raise gen.Return(resp)
+    return resp
 
+def run():
+    resp = make_request()
+    print resp
 
-resp = ioloop.IOLoop.current().run_sync(make_request)
+if __name__ == "__main__":
+    threads = []
+    for i in range(15):
+        thread = Thread(target = run)
+        threads.append(thread)
+        thread.start()
 
-assert resp.headers == {
-    'resp': 'header',
-}
-assert resp.body == 'resp'
+    for thread in threads:
+        print 'sss'
+        thread.join()
 
-print resp.body
-print json.dumps(resp.headers)

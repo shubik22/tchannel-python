@@ -33,8 +33,8 @@ def testString(request):
 
     assert request.headers == {'req': 'header'}
     assert request.body.thing == 'req'
-
-    return Response('resp', headers={'resp': 'header'})
+    print request
+    return Response('r'*100000, headers={'resp': 'header'})
 
 
 tchannel.listen()

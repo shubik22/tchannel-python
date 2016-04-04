@@ -737,41 +737,42 @@ class Writer(object):
     def drain(self):
         self.draining = True
 
-        io_loop = IOLoop.current()
+        IOLoop.current().spawn_callback(self._next_write)
 
-        def on_write(f, done):
-            if f.exception():
-                log.error("write failed", exc_info=f.exc_info())
-                done.set_exc_info(f.exc_info())
-            else:
-                done.set_result(f.result())
+    def _on_write(self, f, done):
+        if f.exception():
+            log.error("write failed", exc_info=f.exc_info())
+            done.set_exc_info(f.exc_info())
+        else:
+            done.set_result(f.result())
 
-            io_loop.spawn_callback(next_write)
+        IOLoop.current().spawn_callback(self._next_write)
 
-        def on_message(f):
-            if f.exception():
-                io_loop.spawn_callback(next_write)
-                log.error("queue get failed", exc_info=f.exc_info())
-                return
+    def _on_message(self, f):
+        if f.exception():
+            IOLoop.current().spawn_callback(self._next_write)
+            log.error("queue get failed", exc_info=f.exc_info())
+            return
 
-            message, done = f.result()
-            try:
-                # write() may raise if the stream was closed while we were
-                # waiting for an entry in the queue.
-                write_future = self.io_stream.write(message)
-            except Exception:
-                io_loop.spawn_callback(next_write)
-                done.set_exc_info(sys.exc_info())
-            else:
-                io_loop.add_future(write_future, lambda f: on_write(f, done))
+        message, done = f.result()
+        try:
+            # write() may raise if the stream was closed while we were
+            # waiting for an entry in the queue.
+            write_future = self.io_stream.write(message)
+        except Exception:
+            IOLoop.current().spawn_callback(self._next_write)
+            done.set_exc_info(sys.exc_info())
+        else:
+            IOLoop.current().add_future(
+                write_future,
+                lambda f: self._on_write(f, done),
+            )
 
-        def next_write():
-            if self.io_stream.closed():
-                return
+    def _next_write(self):
+        if self.io_stream.closed():
+            return
 
-            io_loop.add_future(self.queue.get(), on_message)
-
-        io_loop.spawn_callback(next_write)
+        IOLoop.current().add_future(self.queue.get(), self._on_message)
 
     def put(self, message):
         """Enqueues the given message for writing to the wire.

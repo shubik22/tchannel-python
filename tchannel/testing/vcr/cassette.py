@@ -25,7 +25,7 @@ import os.path
 from itertools import chain
 from collections import deque
 from collections import namedtuple
-from copy import deepcopy
+from copy import copy
 from hashlib import sha256
 
 from . import yaml
@@ -188,7 +188,7 @@ class Cassette(object):
                 file_hash = sha256(data).hexdigest()
                 cached = self._cache.get((self.path, file_hash))
                 if cached is not None:
-                    self._available = deepcopy(cached)
+                    self._available = copy(cached)
                     return
         except IOError:
             return  # nothing to read
@@ -207,7 +207,7 @@ class Cassette(object):
             Interaction.to_native(i) for i in data['interactions']
         ]
         if file_hash is not None:
-            self._cache[(self.path, file_hash)] = deepcopy(self._available)
+            self._cache[(self.path, file_hash)] = copy(self._available)
 
     def save(self):
         if not self._recorded:
